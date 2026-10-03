@@ -24,6 +24,9 @@ export interface Task {
   dueDate: string;            // Ngày hết hạn (ISO string)
   createdAt: string;          // Ngày tạo (ISO string, tự động)
   updatedAt: string;          // Ngày cập nhật (ISO string, tự động)
+  // Các trường dành cho Bài thi thực hành 2 (để null/trống)
+  teamId?: string | null;     // Mã nhóm (sẽ dùng ở BT2)
+  assigneeId?: string | null; // Người được giao (sẽ dùng ở BT2)
 }
 
 // Các danh mục mặc định
@@ -45,4 +48,6 @@ export const createDefaultTask = (): Omit<Task, 'id'> => ({
   dueDate: new Date().toISOString(),
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+  teamId: null,
+  assigneeId: null,
 });
