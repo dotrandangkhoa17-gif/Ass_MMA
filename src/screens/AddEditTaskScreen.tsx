@@ -30,6 +30,20 @@ export default function AddEditTaskScreen({
   onGoBack,
 }: AddEditScreenProps) {
   const isEditing = !!task;
+
+  const getDateYYYYMMDD = (isoString: string): string => {
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return '';
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch {
+      return '';
+    }
+  };
+
   const [formData, setFormData] = useState<Omit<Task, 'id'>>(
     task
       ? {
@@ -43,6 +57,10 @@ export default function AddEditTaskScreen({
           updatedAt: task.updatedAt,
         }
       : createDefaultTask()
+  );
+
+  const [dateInputText, setDateInputText] = useState<string>(() =>
+    getDateYYYYMMDD(formData.dueDate)
   );
   const [saving, setSaving] = useState(false);
 
@@ -83,6 +101,37 @@ export default function AddEditTaskScreen({
       });
     } catch {
       return isoString;
+    }
+  };
+
+  const getPresetDate = (daysFromNow: number): Date => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysFromNow);
+    return d;
+  };
+
+  const datePresets = [
+    { label: 'Hôm nay', date: getPresetDate(0) },
+    { label: 'Ngày mai', date: getPresetDate(1) },
+    { label: '3 ngày nữa', date: getPresetDate(3) },
+    { label: '1 tuần nữa', date: getPresetDate(7) },
+    { label: '2 tuần nữa', date: getPresetDate(14) },
+  ];
+
+  const handleSelectPreset = (presetDate: Date) => {
+    const iso = presetDate.toISOString();
+    setFormData((prev) => ({ ...prev, dueDate: iso }));
+    setDateInputText(getDateYYYYMMDD(iso));
+  };
+
+  const handleCustomDateChange = (text: string) => {
+    setDateInputText(text);
+    const reg = /^\d{4}-\d{2}-\d{2}$/;
+    if (reg.test(text)) {
+      const parsed = new Date(text);
+      if (!isNaN(parsed.getTime())) {
+        setFormData((prev) => ({ ...prev, dueDate: parsed.toISOString() }));
+      }
     }
   };
 
@@ -244,14 +293,56 @@ export default function AddEditTaskScreen({
             </View>
           </View>
 
-          {/* Due Date (simplified - just show current date) */}
+          {/* Due Date Selector */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Ngày hết hạn</Text>
+
+            {/* Selected Date Badge */}
             <View style={styles.dateDisplay}>
               <Text style={styles.dateText}>
-                📅 {formatDateForDisplay(formData.dueDate)}
+                📅 Hạn chót: <Text style={styles.dateValueHighlight}>{formatDateForDisplay(formData.dueDate)}</Text>
               </Text>
             </View>
+
+            {/* Quick Presets */}
+            <Text style={styles.subLabel}>Chọn nhanh:</Text>
+            <View style={styles.optionRow}>
+              {datePresets.map((preset) => {
+                const isSelected =
+                  getDateYYYYMMDD(formData.dueDate) ===
+                  getDateYYYYMMDD(preset.date.toISOString());
+                return (
+                  <TouchableOpacity
+                    key={preset.label}
+                    style={[
+                      styles.datePresetChip,
+                      isSelected && styles.datePresetChipActive,
+                    ]}
+                    onPress={() => handleSelectPreset(preset.date)}
+                  >
+                    <Text
+                      style={[
+                        styles.datePresetText,
+                        isSelected && styles.datePresetTextActive,
+                      ]}
+                    >
+                      {preset.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Custom Date Input */}
+            <Text style={styles.subLabel}>Hoặc nhập ngày tùy chỉnh (Năm-Tháng-Ngày):</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="VD: 2026-10-25"
+              placeholderTextColor="#94A3B8"
+              value={dateInputText}
+              onChangeText={handleCustomDateChange}
+              keyboardType="numbers-and-punctuation"
+            />
           </View>
 
           {/* Save Button */}
@@ -413,17 +504,50 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
+  subLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748B',
+    marginTop: 12,
+    marginBottom: 6,
+  },
   dateDisplay: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#EEF2FF',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#C7D2FE',
   },
   dateText: {
-    fontSize: 16,
-    color: '#1E293B',
+    fontSize: 15,
+    color: '#3730A3',
+    fontWeight: '500',
+  },
+  dateValueHighlight: {
+    fontWeight: 'bold',
+    color: '#4338CA',
+  },
+  datePresetChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  datePresetChipActive: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
+  },
+  datePresetText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#475569',
+  },
+  datePresetTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   saveButton: {
     backgroundColor: '#6366F1',
