@@ -35,7 +35,32 @@ export const addTask = async (task: Omit<Task, 'id'>): Promise<string> => {
   }
 };
 
-// READ - Lấy tất cả công việc
+// READ - Lắng nghe thay đổi dữ liệu thời gian thực (Real-time listener)
+export const subscribeTasks = (
+  onUpdate: (tasks: Task[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe => {
+  const q = query(tasksCollection, orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const tasks: Task[] = [];
+      snapshot.forEach((docSnap) => {
+        tasks.push({
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as Task);
+      });
+      onUpdate(tasks);
+    },
+    (error) => {
+      console.error('Error listening to tasks:', error);
+      if (onError) onError(error);
+    }
+  );
+};
+
+// READ - Lấy tất cả công việc (One-time fetch)
 export const getAllTasks = async (): Promise<Task[]> => {
   try {
     const q = query(tasksCollection, orderBy('createdAt', 'desc'));
