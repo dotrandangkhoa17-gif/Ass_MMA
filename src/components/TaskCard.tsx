@@ -13,6 +13,7 @@ interface TaskCardProps {
   onPress: (task: Task) => void;
   onDelete: (taskId: string) => void;
   onToggleStatus: (task: Task) => void;
+  onEdit?: (task: Task) => void;
 }
 
 const getPriorityColor = (priority: TaskPriority): string => {
@@ -89,6 +90,7 @@ export default function TaskCard({
   onPress,
   onDelete,
   onToggleStatus,
+  onEdit,
 }: TaskCardProps) {
   const handleDelete = () => {
     Alert.alert(
@@ -139,10 +141,15 @@ export default function TaskCard({
             {task.title}
           </Text>
         </View>
-        <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
-          <Text style={styles.deleteBtnText}>🗑</Text>
-        </TouchableOpacity>
-      </View>
+          {onEdit && (
+            <TouchableOpacity onPress={() => onEdit(task)} style={styles.actionBtn}>
+              <Text style={styles.actionBtnText}>✏️</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={handleDelete} style={styles.actionBtn}>
+            <Text style={styles.actionBtnText}>🗑</Text>
+          </TouchableOpacity>
+        </View>
 
       {task.description ? (
         <Text style={styles.description} numberOfLines={2}>
@@ -237,11 +244,12 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     color: '#94A3B8',
   },
-  deleteBtn: {
+  actionBtn: {
     padding: 6,
+    marginLeft: 4,
   },
-  deleteBtnText: {
-    fontSize: 18,
+  actionBtnText: {
+    fontSize: 16,
   },
   description: {
     fontSize: 14,

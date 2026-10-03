@@ -171,6 +171,7 @@ export default function HomeScreen({
             onPress={onNavigateToDetail}
             onDelete={handleDeleteTask}
             onToggleStatus={handleToggleStatus}
+            onEdit={onNavigateToEdit}
           />
         )}
         ListEmptyComponent={<EmptyState />}
