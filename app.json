@@ -21,6 +21,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "4939f8e9-bdfa-453e-97d8-2128a348561c"
+      }
+    },
+    "owner": "dangkhoa17"
   }
 }
