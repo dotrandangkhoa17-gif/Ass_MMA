@@ -7,9 +7,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Task, TaskStatus } from '../models/Task';
 import { getAllTasks, deleteTask, updateTask } from '../services/taskService';
 import TaskCard from '../components/TaskCard';

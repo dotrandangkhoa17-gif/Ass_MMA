@@ -4,10 +4,9 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Task, TaskStatus, TaskPriority } from '../models/Task';
 import { deleteTask, updateTask } from '../services/taskService';
 
