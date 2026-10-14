@@ -1,7 +1,9 @@
-// Firebase configuration
-// Copy .env.example to .env and fill in your Firebase project credentials
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { initializeAuth, getAuth, Auth } from 'firebase/auth';
+// @ts-ignore - Metro resolves RN bundle which exports getReactNativePersistence
+import { getReactNativePersistence } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'YOUR_API_KEY',
@@ -12,10 +14,26 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || 'YOUR_APP_ID',
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase App singleton
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Cloud Firestore and get a reference to the service
+// Initialize Firestore
 const db = getFirestore(app);
 
-export { app, db };
+// Initialize Firebase Auth with React Native AsyncStorage persistence
+let auth: Auth;
+try {
+  if (typeof getReactNativePersistence === 'function') {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } else {
+    auth = getAuth(app);
+  }
+} catch {
+  // If already initialized in hot reload / fast refresh
+  auth = getAuth(app);
+}
+
+export { app, db, auth };
+

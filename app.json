@@ -27,6 +27,12 @@
         "projectId": "4939f8e9-bdfa-453e-97d8-2128a348561c"
       }
     },
-    "owner": "dangkhoa17"
+    "owner": "dangkhoa17",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/4939f8e9-bdfa-453e-97d8-2128a348561c"
+    }
   }
 }

@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 1. Users collection: Lưu thông tin người dùng
+    // Yêu cầu đăng nhập để đọc profile, người dùng có thể tự tạo/cập nhật thông tin của mình
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && (request.auth.uid == userId || request.resource.data.id == request.auth.uid);
+      allow delete: if isOwner(userId);
+    }
+
+    // 2. Teams collection: Quản lý đội nhóm
+    // Người dùng đã đăng nhập có thể xem và tạo nhóm mới
+    // Chỉ Owner hoặc hệ thống mới được sửa/xóa nhóm
+    match /teams/{teamId} {
+      allow read, create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+
+      // 3. Subcollection messages: Chat thời gian thực của nhóm
+      match /messages/{messageId} {
+        allow read, create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+      }
+
+      // Subcollection typing: Trạng thái đang gõ
+      match /typing/{userId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // 4. TeamMembers collection: Thành viên trong các nhóm
+    match /teamMembers/{memberId} {
+      allow read, create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+
+    // 5. Tasks collection: Công việc
+    // Yêu cầu người dùng phải xác thực (request.auth != null)
+    match /tasks/{taskId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+  }
+}
