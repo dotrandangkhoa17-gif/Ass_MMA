@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Task, TaskStatus } from '../models/Task';
-import { getAllTasks, deleteTask, updateTask } from '../services/taskService';
+import { deleteTask, updateTask, subscribeTasksForUser } from '../services/taskService';
+import { subscribeUserTeams } from '../services/teamService';
+import { useAuth } from '../context/AuthContext';
 import TaskCard from '../components/TaskCard';
 import EmptyState from '../components/EmptyState';
 
@@ -26,37 +28,62 @@ export default function HomeScreen({
   onNavigateToEdit,
   onNavigateToDetail,
 }: HomeScreenProps) {
+  const { user, userProfile } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | TaskStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all');
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'mine' | 'team'>('all');
 
-  const loadTasks = useCallback(async () => {
-    try {
-      const fetchedTasks = await getAllTasks();
-      setTasks(fetchedTasks);
-    } catch (error) {
-      console.error('Failed to load tasks:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  // Lắng nghe các team mà user tham gia, sau đó lắng nghe các task liên quan
+  useEffect(() => {
+    if (!user) return;
 
-  // Load tasks on mount
-  React.useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+    let unsubTasks: (() => void) | undefined;
 
-  const onRefresh = useCallback(() => {
+    const unsubTeams = subscribeUserTeams(
+      user.uid,
+      (teams) => {
+        const teamIds = teams.map((t) => t.id!).filter(Boolean);
+
+        if (unsubTasks) unsubTasks();
+
+        unsubTasks = subscribeTasksForUser(
+          user.uid,
+          teamIds,
+          (fetchedTasks) => {
+            setTasks(fetchedTasks);
+            setLoading(false);
+            setRefreshing(false);
+          },
+          (error) => {
+            console.error('Failed to load tasks:', error);
+            setLoading(false);
+            setRefreshing(false);
+          }
+        );
+      },
+      (err) => {
+        console.error('Failed to listen to user teams:', err);
+        setLoading(false);
+        setRefreshing(false);
+      }
+    );
+
+    return () => {
+      unsubTeams();
+      if (unsubTasks) unsubTasks();
+    };
+  }, [user]);
+
+  const onRefresh = () => {
     setRefreshing(true);
-    loadTasks();
-  }, [loadTasks]);
+    setTimeout(() => setRefreshing(false), 800);
+  };
 
   const handleDeleteTask = async (taskId: string) => {
     try {
       await deleteTask(taskId);
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
     } catch (error) {
       console.error('Failed to delete task:', error);
     }
@@ -70,20 +97,29 @@ export default function HomeScreen({
         : TaskStatus.COMPLETED;
     try {
       await updateTask(task.id, { status: newStatus });
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === task.id ? { ...t, status: newStatus } : t
-        )
-      );
     } catch (error) {
       console.error('Failed to toggle task status:', error);
     }
   };
 
-  const filteredTasks =
-    filter === 'all'
-      ? tasks
-      : tasks.filter((t) => t.status === filter);
+  // Lọc theo scope (Tất cả / Của tôi / Nhóm) và status (all, pending, in_progress, completed)
+  const filteredTasks = tasks.filter((t) => {
+    // 1. Lọc theo scope
+    if (scopeFilter === 'mine') {
+      const isAssignedToMe = t.assigneeId === user?.uid;
+      const isCreatedByMe = t.creatorId === user?.uid;
+      if (!isAssignedToMe && !isCreatedByMe) return false;
+    } else if (scopeFilter === 'team') {
+      if (!t.teamId) return false;
+    }
+
+    // 2. Lọc theo trạng thái
+    if (statusFilter !== 'all' && t.status !== statusFilter) {
+      return false;
+    }
+
+    return true;
+  });
 
   const taskStats = {
     total: tasks.length,
@@ -92,7 +128,7 @@ export default function HomeScreen({
     inProgress: tasks.filter((t) => t.status === TaskStatus.IN_PROGRESS).length,
   };
 
-  const filters: { key: 'all' | TaskStatus; label: string }[] = [
+  const statusFilters: { key: 'all' | TaskStatus; label: string }[] = [
     { key: 'all', label: `Tất cả (${tasks.length})` },
     { key: TaskStatus.PENDING, label: `Chờ (${taskStats.pending})` },
     { key: TaskStatus.IN_PROGRESS, label: `Đang làm (${taskStats.inProgress})` },
@@ -103,20 +139,24 @@ export default function HomeScreen({
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6366F1" />
-        <Text style={styles.loadingText}>Đang tải công việc...</Text>
+        <Text style={styles.loadingText}>Đang tải công việc của bạn...</Text>
       </SafeAreaView>
     );
   }
 
+  const displayName = userProfile?.name || user?.displayName || 'bạn';
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Xin chào! 👋</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.greeting}>Xin chào, {displayName}! 👋</Text>
           <Text style={styles.headerTitle}>Công việc của bạn</Text>
         </View>
+
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{taskStats.total}</Text>
@@ -132,10 +172,55 @@ export default function HomeScreen({
         </View>
       </View>
 
-      {/* Filter Tabs */}
+      {/* Scope Switcher Tabs (Tất cả / Của tôi / Nhóm) */}
+      <View style={styles.scopeContainer}>
+        <TouchableOpacity
+          style={[styles.scopeBtn, scopeFilter === 'all' && styles.scopeBtnActive]}
+          onPress={() => setScopeFilter('all')}
+        >
+          <Text
+            style={[
+              styles.scopeBtnText,
+              scopeFilter === 'all' && styles.scopeBtnTextActive,
+            ]}
+          >
+            Tất cả
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.scopeBtn, scopeFilter === 'mine' && styles.scopeBtnActive]}
+          onPress={() => setScopeFilter('mine')}
+        >
+          <Text
+            style={[
+              styles.scopeBtnText,
+              scopeFilter === 'mine' && styles.scopeBtnTextActive,
+            ]}
+          >
+            👤 Của tôi
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.scopeBtn, scopeFilter === 'team' && styles.scopeBtnActive]}
+          onPress={() => setScopeFilter('team')}
+        >
+          <Text
+            style={[
+              styles.scopeBtnText,
+              scopeFilter === 'team' && styles.scopeBtnTextActive,
+            ]}
+          >
+            👥 Nhóm
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Filter Tabs by Status */}
       <View style={styles.filterContainer}>
         <FlatList
-          data={filters}
+          data={statusFilters}
           horizontal
           showsHorizontalScrollIndicator={false}
           keyExtractor={(item) => item.key}
@@ -144,14 +229,14 @@ export default function HomeScreen({
             <TouchableOpacity
               style={[
                 styles.filterTab,
-                filter === item.key && styles.filterTabActive,
+                statusFilter === item.key && styles.filterTabActive,
               ]}
-              onPress={() => setFilter(item.key)}
+              onPress={() => setStatusFilter(item.key)}
             >
               <Text
                 style={[
                   styles.filterTabText,
-                  filter === item.key && styles.filterTabTextActive,
+                  statusFilter === item.key && styles.filterTabTextActive,
                 ]}
               >
                 {item.label}
@@ -174,7 +259,17 @@ export default function HomeScreen({
             onEdit={onNavigateToEdit}
           />
         )}
-        ListEmptyComponent={<EmptyState />}
+        ListEmptyComponent={
+          <EmptyState
+            message={
+              scopeFilter === 'team'
+                ? 'Chưa có công việc nào thuộc đội nhóm.'
+                : scopeFilter === 'mine'
+                ? 'Bạn chưa có công việc cá nhân nào được giao.'
+                : 'Chưa có công việc nào. Bấm nút + bên dưới để tạo mới!'
+            }
+          />
+        }
         contentContainerStyle={
           filteredTasks.length === 0 ? styles.emptyList : styles.list
         }
@@ -189,7 +284,7 @@ export default function HomeScreen({
         showsVerticalScrollIndicator={false}
       />
 
-      {/* FAB */}
+      {/* Floating Action Button */}
       <TouchableOpacity
         style={styles.fab}
         onPress={onNavigateToAdd}
@@ -214,7 +309,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
+    fontSize: 15,
     color: '#94A3B8',
   },
   header: {
@@ -223,62 +318,101 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 12,
+    paddingBottom: 10,
     backgroundColor: '#F8FAFC',
   },
+  headerLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
   greeting: {
-    fontSize: 14,
-    color: '#94A3B8',
+    fontSize: 13,
+    color: '#64748B',
     marginBottom: 2,
+    fontWeight: '500',
   },
   headerTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#1E293B',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   statsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   statItem: {
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#6366F1',
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#94A3B8',
-    marginTop: 2,
+    marginTop: 1,
   },
   statDivider: {
     width: 1,
-    height: 28,
+    height: 24,
     backgroundColor: '#E2E8F0',
-    marginHorizontal: 14,
+    marginHorizontal: 10,
+  },
+  scopeContainer: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 3,
+  },
+  scopeBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    borderRadius: 9,
+  },
+  scopeBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  scopeBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  scopeBtnTextActive: {
+    color: '#0F172A',
+    fontWeight: '700',
   },
   filterContainer: {
-    paddingBottom: 8,
+    paddingBottom: 6,
   },
   filterList: {
     paddingHorizontal: 16,
     gap: 8,
   },
   filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -288,27 +422,28 @@ const styles = StyleSheet.create({
     borderColor: '#6366F1',
   },
   filterTabText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
     color: '#64748B',
   },
   filterTabTextActive: {
     color: '#FFFFFF',
+    fontWeight: '600',
   },
   list: {
     paddingTop: 4,
-    paddingBottom: 100,
+    paddingBottom: 90,
   },
   emptyList: {
     flexGrow: 1,
   },
   fab: {
     position: 'absolute',
-    bottom: 30,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    bottom: 24,
+    right: 20,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     backgroundColor: '#6366F1',
     justifyContent: 'center',
     alignItems: 'center',

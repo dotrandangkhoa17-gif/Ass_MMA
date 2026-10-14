@@ -24,9 +24,14 @@ export interface Task {
   dueDate: string;            // Ngày hết hạn (ISO string)
   createdAt: string;          // Ngày tạo (ISO string, tự động)
   updatedAt: string;          // Ngày cập nhật (ISO string, tự động)
-  // Các trường dành cho Bài thi thực hành 2 (để null/trống)
-  teamId?: string | null;     // Mã nhóm (sẽ dùng ở BT2)
-  assigneeId?: string | null; // Người được giao (sẽ dùng ở BT2)
+  // Các trường liên kết Đội nhóm và Người thực hiện (Bài thi 2)
+  teamId?: string | null;     // ID nhóm
+  teamName?: string | null;   // Tên nhóm (để hiển thị nhanh)
+  assigneeId?: string | null; // UID người được giao việc
+  assigneeName?: string | null; // Tên người được giao việc
+  assigneeAvatar?: string | null; // Avatar người được giao
+  creatorId?: string | null;  // UID người tạo task
+  creatorName?: string | null; // Tên người tạo task
 }
 
 // Các danh mục mặc định

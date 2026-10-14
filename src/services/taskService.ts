@@ -8,6 +8,7 @@ import {
   deleteDoc,
   doc,
   query,
+  where,
   orderBy,
   onSnapshot,
   Unsubscribe,
@@ -55,6 +56,73 @@ export const subscribeTasks = (
     },
     (error) => {
       console.error('Error listening to tasks:', error);
+      if (onError) onError(error);
+    }
+  );
+};
+
+// READ - Lắng nghe công việc của một nhóm cụ thể (Real-time)
+export const subscribeTeamTasks = (
+  teamId: string,
+  onUpdate: (tasks: Task[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe => {
+  // Chỉ lọc theo teamId, sắp xếp phía client để không yêu cầu Composite Index trên Firestore
+  const q = query(tasksCollection, where('teamId', '==', teamId));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const tasks: Task[] = [];
+      snapshot.forEach((docSnap) => {
+        tasks.push({
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as Task);
+      });
+      // Sắp xếp thời gian tạo mới nhất lên đầu
+      tasks.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      onUpdate(tasks);
+    },
+    (error) => {
+      console.error('Error listening to team tasks:', error);
+      if (onError) onError(error);
+    }
+  );
+};
+
+// READ - Lắng nghe công việc liên quan đến người dùng (nhóm tham gia + được giao việc + cá nhân)
+export const subscribeTasksForUser = (
+  userId: string,
+  userTeamIds: string[],
+  onUpdate: (tasks: Task[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe => {
+  const q = query(tasksCollection, orderBy('createdAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const tasks: Task[] = [];
+      snapshot.forEach((docSnap) => {
+        const t = { id: docSnap.id, ...docSnap.data() } as Task;
+        // Hiển thị nếu:
+        // 1. Task thuộc một trong các team mà user là thành viên
+        // 2. Hoặc task được assign trực tiếp cho user
+        // 3. Hoặc task do chính user này tạo
+        const isInUserTeam = t.teamId ? userTeamIds.includes(t.teamId) : false;
+        const isAssignee = t.assigneeId === userId;
+        const isCreator = t.creatorId === userId;
+
+        if (isInUserTeam || isAssignee || isCreator) {
+          tasks.push(t);
+        }
+      });
+      onUpdate(tasks);
+    },
+    (error) => {
+      console.error('Error listening to user tasks:', error);
       if (onError) onError(error);
     }
   );

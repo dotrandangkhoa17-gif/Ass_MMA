@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { Task, TaskStatus, TaskPriority } from '../models/Task';
+import ConfirmModal from './ConfirmModal';
 
 interface TaskCardProps {
   task: Task;
@@ -92,19 +92,17 @@ export default function TaskCard({
   onToggleStatus,
   onEdit,
 }: TaskCardProps) {
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+
   const handleDelete = () => {
-    Alert.alert(
-      'Xác nhận xóa',
-      `Bạn có chắc chắn muốn xóa công việc "${task.title}"?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => task.id && onDelete(task.id),
-        },
-      ]
-    );
+    setDeleteModalVisible(true);
+  };
+
+  const handleConfirmDelete = () => {
+    setDeleteModalVisible(false);
+    if (task.id) {
+      onDelete(task.id);
+    }
   };
 
   const isCompleted = task.status === TaskStatus.COMPLETED;
@@ -180,9 +178,28 @@ export default function TaskCard({
         </View>
       </View>
 
-      <View style={styles.categoryRow}>
+      <View style={styles.badgeRow}>
         <Text style={styles.categoryBadge}>📂 {task.category}</Text>
+        {task.teamName ? (
+          <Text style={styles.teamBadge}>👥 {task.teamName}</Text>
+        ) : null}
+        {task.assigneeName ? (
+          <Text style={styles.assigneeBadge}>👤 {task.assigneeName}</Text>
+        ) : null}
       </View>
+
+      {/* Confirmation Modal for Delete Task */}
+      <ConfirmModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onConfirm={handleConfirmDelete}
+        title="Xóa công việc?"
+        message={`Bạn có chắc chắn muốn xóa công việc "${task.title}"? Dữ liệu này sẽ không thể khôi phục.`}
+        confirmText="Xóa task"
+        cancelText="Hủy"
+        type="danger"
+        icon="🗑️"
+      />
     </TouchableOpacity>
   );
 }
@@ -292,16 +309,36 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     marginHorizontal: 6,
   },
-  categoryRow: {
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
     marginTop: 8,
   },
   categoryBadge: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
     backgroundColor: '#F1F5F9',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
-    alignSelf: 'flex-start',
+  },
+  teamBadge: {
+    fontSize: 11,
+    color: '#4F46E5',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    fontWeight: '600',
+  },
+  assigneeBadge: {
+    fontSize: 11,
+    color: '#059669',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    fontWeight: '600',
   },
 });

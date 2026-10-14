@@ -1,15 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Task, TaskStatus, TaskPriority } from '../models/Task';
 import { deleteTask, updateTask } from '../services/taskService';
+import ConfirmModal from '../components/ConfirmModal';
 
 interface TaskDetailScreenProps {
   task: Task;
@@ -81,30 +81,26 @@ export default function TaskDetailScreen({
 }: TaskDetailScreenProps) {
   const priorityInfo = getPriorityInfo(task.priority);
   const statusInfo = getStatusInfo(task.status);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleDelete = () => {
-    Alert.alert(
-      'Xác nhận xóa',
-      `Bạn có chắc chắn muốn xóa công việc "${task.title}"?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              if (task.id) {
-                await deleteTask(task.id);
-                onGoBack();
-              }
-            } catch (error) {
-              console.error('Error deleting task:', error);
-              Alert.alert('Lỗi', 'Không thể xóa công việc.');
-            }
-          },
-        },
-      ]
-    );
+    setDeleteModalVisible(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setDeleting(true);
+    try {
+      if (task.id) {
+        await deleteTask(task.id);
+        setDeleteModalVisible(false);
+        onGoBack();
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleToggleComplete = async () => {
@@ -191,6 +187,29 @@ export default function TaskDetailScreen({
           </View>
         </View>
 
+        {/* Team & Assignee Section (Bài thi 2) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>👥 Đội nhóm & Phân công</Text>
+          <View style={styles.dateRow}>
+            <Text style={styles.dateLabel}>Đội nhóm:</Text>
+            <Text style={[styles.dateValue, { fontWeight: '700', color: task.teamName ? '#4F46E5' : '#64748B' }]}>
+              {task.teamName ? `👥 ${task.teamName}` : '👤 Cá nhân (không thuộc nhóm)'}
+            </Text>
+          </View>
+          <View style={styles.dateRow}>
+            <Text style={styles.dateLabel}>Người thực hiện:</Text>
+            <Text style={[styles.dateValue, { fontWeight: '700', color: task.assigneeName ? '#059669' : '#64748B' }]}>
+              {task.assigneeName ? `👤 ${task.assigneeName}` : 'Chưa phân công'}
+            </Text>
+          </View>
+          {task.creatorName ? (
+            <View style={styles.dateRow}>
+              <Text style={styles.dateLabel}>Người tạo task:</Text>
+              <Text style={styles.dateValue}>{task.creatorName}</Text>
+            </View>
+          ) : null}
+        </View>
+
         {/* Dates */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📅 Thời gian</Text>
@@ -226,6 +245,20 @@ export default function TaskDetailScreen({
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Confirmation Modal for Delete Task */}
+      <ConfirmModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onConfirm={handleConfirmDelete}
+        title="Xóa công việc?"
+        message={`Bạn có chắc chắn muốn xóa công việc "${task.title}"? Dữ liệu này sẽ không thể khôi phục.`}
+        confirmText="Xóa task"
+        cancelText="Hủy"
+        type="danger"
+        icon="🗑️"
+        loading={deleting}
+      />
     </SafeAreaView>
   );
 }
